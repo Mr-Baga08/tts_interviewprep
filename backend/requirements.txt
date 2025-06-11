@@ -1,0 +1,89 @@
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database dependencies
+sqlalchemy==2.0.23
+alembic==1.13.0
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Authentication and security
+fastapi-users[sqlalchemy]==12.1.2
+fastapi-users-db-sqlalchemy==6.0.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# HTTP client for external APIs
+httpx==0.25.2
+aiofiles==23.2.1
+
+# AI and ML dependencies
+openai==1.3.7
+google-generativeai==0.3.0
+anthropic==0.7.7
+
+# Document processing
+PyMuPDF==1.23.9
+python-docx==1.1.0
+pypdf==3.17.0
+
+# Real-time communication (LiveKit)
+livekit==0.10.1
+livekit-api==0.5.7
+livekit-agents==0.8.0
+
+# Code execution integration
+judge0-api==1.0.0
+
+# Task queue and background jobs
+celery==5.3.4
+redis==5.0.1
+
+# Data validation and serialization
+marshmallow==3.20.1
+marshmallow-sqlalchemy==0.29.0
+
+# Testing dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
+
+# Development dependencies
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0
+
+# Monitoring and logging
+structlog==23.2.0
+rich==13.7.0
+
+# File uploads and storage
+google-cloud-storage==2.10.0
+pillow==10.1.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+email-validator==2.1.0
+
+# WebSocket support
+websockets==12.0
+
+# CORS middleware
+python-cors==1.0.1
+
+# Rate limiting
+slowapi==0.1.9
+
+# Environment management
+python-dotenv==1.0.0
+
+# API documentation
+pydantic-extra-types==2.2.0

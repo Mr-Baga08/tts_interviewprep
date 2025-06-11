@@ -1,0 +1,51 @@
+{
+    "name": "thetruthschool",
+    "version": "1.0.0",
+    "description": "TheTruthSchool - Comprehensive Job Preparation Platform",
+    "private": true,
+    "workspaces": [
+      "frontend"
+    ],
+    "scripts": {
+      "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+      "dev:frontend": "cd frontend && npm run dev",
+      "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+      "build": "npm run build:frontend",
+      "build:frontend": "cd frontend && npm run build",
+      "start": "npm run start:frontend",
+      "start:frontend": "cd frontend && npm run start",
+      "lint": "npm run lint:frontend",
+      "lint:frontend": "cd frontend && npm run lint",
+      "type-check": "cd frontend && npm run type-check",
+      "test": "concurrently \"npm run test:frontend\" \"npm run test:backend\"",
+      "test:frontend": "cd frontend && npm run test",
+      "test:backend": "cd backend && python -m pytest",
+      "install:all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+      "clean": "rm -rf node_modules frontend/node_modules frontend/.next backend/__pycache__ backend/.pytest_cache",
+      "setup:env": "cp frontend/.env.example frontend/.env.local && cp backend/.env.example backend/.env",
+      "db:migrate": "cd backend && alembic upgrade head",
+      "db:migration": "cd backend && alembic revision --autogenerate -m",
+      "docker:dev": "docker-compose -f docker-compose.yml up --build",
+      "docker:prod": "docker-compose -f docker-compose.prod.yml up --build"
+    },
+    "devDependencies": {
+      "concurrently": "^8.2.2"
+    },
+    "engines": {
+      "node": ">=18.0.0",
+      "npm": ">=8.0.0"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/Mr-Baga08/thetruthschool.git"
+    },
+    "keywords": [
+      "job-preparation",
+      "coding-challenges",
+      "mock-interviews",
+      "ai-powered",
+      "career-development"
+    ],
+    "author": "TheTruthSchool Team",
+    "license": "MIT"
+}
