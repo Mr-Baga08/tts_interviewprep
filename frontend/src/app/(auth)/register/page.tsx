@@ -1,6 +1,7 @@
+// frontend/src/app/(auth)/register/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -8,13 +9,15 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
-import { Github, Mail, Loader2, ArrowLeft, Check } from 'lucide-react'
+import { Github, Mail, Loader2, ArrowLeft, Check, AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input, PasswordInput } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { authApi } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
@@ -63,6 +66,7 @@ export default function RegisterPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
+  const [registrationStep, setRegistrationStep] = useState<'form' | 'success' | 'verification'>('form')
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -83,38 +87,69 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      // Register the user
-      await authApi.register({
+      // Step 1: Register the user with your backend
+      const registrationResponse = await authApi.register({
         email: data.email,
         password: data.password,
         first_name: data.firstName,
         last_name: data.lastName,
+        subscribe_to_newsletter: data.subscribeToNewsletter,
       })
 
       toast.success('Account created successfully!')
+      setRegistrationStep('success')
 
-      // Automatically sign in the user
-      const result = await signIn('credentials', {
+      // Step 2: Automatically sign in the user using NextAuth
+      const signInResult = await signIn('credentials', {
         email: data.email,
         password: data.password,
         redirect: false,
       })
 
-      if (result?.ok) {
+      if (signInResult?.ok) {
         toast.success('Welcome to TheTruthSchool!')
-        router.push('/onboarding')
+        
+        // Check if user needs email verification
+        if (registrationResponse?.user?.is_verified === false) {
+          setRegistrationStep('verification')
+          // Don't redirect yet, show verification message
+          return
+        }
+        
+        // Redirect based on user status
+        if (registrationResponse?.user?.onboarding_completed === false) {
+          router.push('/onboarding')
+        } else {
+          router.push('/dashboard')
+        }
       } else {
-        toast.error('Account created but login failed. Please try signing in.')
-        router.push('/auth/login')
+        // Registration succeeded but auto-login failed
+        toast.warning('Account created! Please sign in to continue.')
+        router.push('/auth/login?email=' + encodeURIComponent(data.email))
       }
     } catch (error: any) {
       console.error('Registration error:', error)
       
-      if (error.response?.status === 409) {
+      // Handle specific error cases
+      if (error.response?.status === 409 || error.message?.includes('already exists')) {
         toast.error('An account with this email already exists.')
         form.setError('email', {
           message: 'An account with this email already exists.'
         })
+      } else if (error.response?.status === 422) {
+        // Validation errors from backend
+        const details = error.response?.data?.detail
+        if (Array.isArray(details)) {
+          details.forEach((detail: any) => {
+            if (detail.loc && detail.loc.includes('email')) {
+              form.setError('email', { message: detail.msg })
+            } else if (detail.loc && detail.loc.includes('password')) {
+              form.setError('password', { message: detail.msg })
+            }
+          })
+        } else {
+          toast.error(details || 'Please check your input and try again.')
+        }
       } else if (error.response?.data?.detail) {
         toast.error(error.response.data.detail)
       } else {
@@ -129,14 +164,86 @@ export default function RegisterPage() {
     setOauthLoading(provider)
 
     try {
-      await signIn(provider, {
-        callbackUrl: '/onboarding',
+      const result = await signIn(provider, {
+        callbackUrl: '/onboarding', // OAuth users typically need onboarding
+        redirect: true,
       })
+      
+      // If redirect is false and there's an error
+      if (result?.error) {
+        toast.error(`Failed to sign up with ${provider}. Please try again.`)
+        setOauthLoading(null)
+      }
     } catch (error) {
-      console.error(`${provider} sign in error:`, error)
+      console.error(`${provider} sign up error:`, error)
       toast.error(`Failed to sign up with ${provider}. Please try again.`)
       setOauthLoading(null)
     }
+  }
+
+  const resendVerificationEmail = async () => {
+    try {
+      const email = form.getValues('email')
+      await authApi.resendVerificationEmail(email)
+      toast.success('Verification email sent! Please check your inbox.')
+    } catch (error) {
+      toast.error('Failed to send verification email. Please try again.')
+    }
+  }
+
+  // Success state
+  if (registrationStep === 'success') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <Check className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle className="text-xl">Account Created!</CardTitle>
+            <CardDescription>
+              Your account has been successfully created and you're now signed in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push('/onboarding')} className="w-full">
+              Continue to Setup
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Email verification state
+  if (registrationStep === 'verification') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+              <Mail className="h-6 w-6 text-blue-600" />
+            </div>
+            <CardTitle className="text-xl">Verify Your Email</CardTitle>
+            <CardDescription>
+              We've sent a verification link to {form.getValues('email')}. 
+              Please check your email and click the link to verify your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={resendVerificationEmail} variant="outline" className="w-full">
+              Resend Verification Email
+            </Button>
+            <Button onClick={() => router.push('/dashboard')} className="w-full">
+              Continue to Dashboard
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              You can verify your email later from your account settings.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -157,7 +264,7 @@ export default function RegisterPage() {
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
             <p className="text-muted-foreground">
-              Start your journey to landing your dream job
+              Join TheTruthSchool and start your journey to career success
             </p>
           </div>
 
@@ -229,17 +336,12 @@ export default function RegisterPage() {
                         <FormItem>
                           <FormLabel>First name</FormLabel>
                           <FormControl>
-                            <Input
-                              placeholder="John"
-                              autoComplete="given-name"
-                              {...field}
-                            />
+                            <Input placeholder="John" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
                     <FormField
                       control={form.control}
                       name="lastName"
@@ -247,11 +349,7 @@ export default function RegisterPage() {
                         <FormItem>
                           <FormLabel>Last name</FormLabel>
                           <FormControl>
-                            <Input
-                              placeholder="Doe"
-                              autoComplete="family-name"
-                              {...field}
-                            />
+                            <Input placeholder="Doe" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -266,11 +364,10 @@ export default function RegisterPage() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input
+                          <Input 
                             type="email"
-                            placeholder="john@example.com"
-                            autoComplete="email"
-                            {...field}
+                            placeholder="john@example.com" 
+                            {...field} 
                           />
                         </FormControl>
                         <FormMessage />
@@ -287,39 +384,40 @@ export default function RegisterPage() {
                         <FormControl>
                           <PasswordInput
                             placeholder="Create a strong password"
-                            autoComplete="new-password"
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
                         
                         {/* Password Requirements */}
                         {password && (
                           <div className="space-y-2">
-                            <p className="text-xs text-muted-foreground">Password requirements:</p>
-                            <div className="grid grid-cols-1 gap-1">
+                            <p className="text-sm text-muted-foreground">
+                              Password requirements:
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
                               {passwordRequirements.map((req, index) => (
-                                <div key={index} className="flex items-center space-x-2">
-                                  <div className={cn(
-                                    "w-3 h-3 rounded-full flex items-center justify-center",
-                                    req.test(password) ? "bg-green-500" : "bg-muted"
-                                  )}>
-                                    {req.test(password) && (
-                                      <Check className="w-2 h-2 text-white" />
+                                <div
+                                  key={index}
+                                  className={cn(
+                                    "flex items-center text-xs",
+                                    req.test(password)
+                                      ? "text-green-600"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-1 h-3 w-3",
+                                      req.test(password) ? "opacity-100" : "opacity-30"
                                     )}
-                                  </div>
-                                  <span className={cn(
-                                    "text-xs",
-                                    req.test(password) ? "text-green-600" : "text-muted-foreground"
-                                  )}>
-                                    {req.label}
-                                  </span>
+                                  />
+                                  {req.label}
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
-                        
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -333,7 +431,6 @@ export default function RegisterPage() {
                         <FormControl>
                           <PasswordInput
                             placeholder="Confirm your password"
-                            autoComplete="new-password"
                             {...field}
                           />
                         </FormControl>
@@ -342,73 +439,78 @@ export default function RegisterPage() {
                     )}
                   />
 
-                  <div className="space-y-3">
-                    <div className="flex items-start space-x-2">
-                      <input
-                        type="checkbox"
-                        id="agreeToTerms"
-                        {...form.register('agreeToTerms')}
-                        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      <div className="text-sm">
-                        <label htmlFor="agreeToTerms" className="font-medium leading-none">
-                          I agree to the{' '}
-                          <Link href="/terms" className="text-primary hover:underline">
-                            Terms of Service
-                          </Link>
-                          {' '}and{' '}
-                          <Link href="/privacy" className="text-primary hover:underline">
-                            Privacy Policy
-                          </Link>
-                        </label>
-                      </div>
-                    </div>
-                    {form.formState.errors.agreeToTerms && (
-                      <p className="text-sm text-destructive">
-                        {form.formState.errors.agreeToTerms.message}
-                      </p>
+                  {/* Terms and Conditions */}
+                  <FormField
+                    control={form.control}
+                    name="agreeToTerms"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="text-sm font-normal">
+                            I agree to the{' '}
+                            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+                              Terms of Service
+                            </Link>{' '}
+                            and{' '}
+                            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
+                              Privacy Policy
+                            </Link>
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                      </FormItem>
                     )}
+                  />
 
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="subscribeToNewsletter"
-                        {...form.register('subscribeToNewsletter')}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      <label htmlFor="subscribeToNewsletter" className="text-sm leading-none">
-                        Subscribe to our newsletter for tips and updates
-                      </label>
-                    </div>
-                  </div>
+                  {/* Newsletter Subscription */}
+                  <FormField
+                    control={form.control}
+                    name="subscribeToNewsletter"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="text-sm font-normal">
+                            Subscribe to our newsletter for tips and updates
+                          </FormLabel>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
 
                   <Button
                     type="submit"
-                    size="lg"
                     className="w-full"
                     disabled={isLoading}
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      'Create account'
+                    {isLoading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
+                    Create account
                   </Button>
                 </form>
               </Form>
             </CardContent>
           </Card>
 
-          {/* Sign in link */}
+          {/* Already have account link */}
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link
-                href="/auth/login"
-                className="font-medium text-primary hover:underline"
+              <Link 
+                href="/auth/login" 
+                className="underline underline-offset-4 hover:text-primary"
               >
                 Sign in
               </Link>
@@ -417,71 +519,32 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right side - Benefits */}
-      <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:justify-center lg:px-8 bg-muted">
-        <div className="mx-auto max-w-md text-center space-y-6">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight">
-              Start Your Success Journey
-            </h2>
+      {/* Right side - Feature highlights or image */}
+      <div className="hidden lg:flex lg:flex-1 lg:bg-muted">
+        <div className="flex items-center justify-center p-12">
+          <div className="max-w-md space-y-6 text-center">
+            <h2 className="text-2xl font-bold">Ready to land your dream job?</h2>
             <p className="text-muted-foreground">
-              Join thousands of professionals who have transformed their careers 
-              with our comprehensive preparation platform.
+              Join thousands of professionals who've transformed their careers with TheTruthSchool's 
+              comprehensive job preparation platform.
             </p>
-          </div>
-
-          <div className="text-center space-y-6">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-primary">92%</div>
-                <div className="text-sm text-muted-foreground">Success Rate</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-primary">10K+</div>
-                <div className="text-sm text-muted-foreground">Active Users</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-primary">500+</div>
-                <div className="text-sm text-muted-foreground">Companies</div>
-              </div>
-            </div>
-
             <div className="space-y-4">
-              <div className="text-left">
-                <h3 className="font-semibold mb-2">What you'll get:</h3>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span>Unlimited AI mock interviews</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span>500+ coding challenges</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span>AI-powered resume review</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span>Personalized feedback & insights</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span>Progress tracking & analytics</span>
-                  </li>
-                </ul>
+              <div className="flex items-center space-x-3">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="text-sm">AI-powered interview practice</span>
               </div>
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <div className="bg-background rounded-lg p-4 text-left">
-              <p className="text-sm italic text-muted-foreground mb-2">
-                &ldquo;I went from 0 interviews to 5 offers in 2 months. 
-                TheTruthSchool&apos;s AI feedback was game-changing.&rdquo;
-              </p>
-              <p className="text-sm font-medium">— Michael Rodriguez, Senior Developer</p>
+              <div className="flex items-center space-x-3">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="text-sm">Personalized coding challenges</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="text-sm">Resume optimization tools</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Check className="h-5 w-5 text-green-500" />
+                <span className="text-sm">Progress tracking & analytics</span>
+              </div>
             </div>
           </div>
         </div>

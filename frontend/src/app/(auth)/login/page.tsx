@@ -67,7 +67,7 @@ export default function LoginPage() {
       
       toast.error(errorMessages[error] || errorMessages.default)
     }
-  }, [error])
+  })
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true)

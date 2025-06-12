@@ -1,4 +1,3 @@
-// frontend/src/app/challenges/[id]/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -15,7 +14,7 @@ import {
   Play, 
   Send, 
   Clock, 
-  Memory, 
+  Cpu, 
   CheckCircle, 
   XCircle, 
   AlertCircle,
@@ -78,7 +77,13 @@ interface ExecutionResponse {
   overall_status: string
 }
 
-const LANGUAGE_OPTIONS = [
+interface LanguageOption {
+  id: number
+  name: string
+  label: string
+}
+
+const LANGUAGE_OPTIONS: LanguageOption[] = [
   { id: 71, name: 'python', label: 'Python 3.8' },
   { id: 63, name: 'javascript', label: 'JavaScript (Node.js)' },
   { id: 62, name: 'java', label: 'Java 11' },
@@ -101,7 +106,8 @@ export default function ChallengePage() {
   const params = useParams()
   const challengeId = params.id as string
 
-  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGE_OPTIONS[0])
+  // Fix 1: Initialize with a default language instead of possibly undefined
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>(LANGUAGE_OPTIONS[0] ?? { id: 71, name: 'python', label: 'Python 3.8' })
   const [code, setCode] = useState('')
   const [isRunning, setIsRunning] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -136,6 +142,12 @@ export default function ChallengePage() {
   const runCode = async () => {
     if (!code.trim()) {
       toast.error('Please write some code first')
+      return
+    }
+
+    // Fix 2: Add safety check for selectedLanguage (though it should never be undefined now)
+    if (!selectedLanguage) {
+      toast.error('Please select a programming language')
       return
     }
 
@@ -185,6 +197,12 @@ export default function ChallengePage() {
   const submitSolution = async () => {
     if (!code.trim()) {
       toast.error('Please write some code first')
+      return
+    }
+
+    // Fix 3: Add safety check for selectedLanguage
+    if (!selectedLanguage) {
+      toast.error('Please select a programming language')
       return
     }
 
@@ -314,7 +332,7 @@ export default function ChallengePage() {
                         )}
                         {challenge.memory_limit && (
                           <div className="flex items-center gap-1">
-                            <Memory className="w-4 h-4" />
+                            <Cpu className="w-4 h-4" />
                             Memory Limit: {Math.round(challenge.memory_limit / 1024)}MB
                           </div>
                         )}

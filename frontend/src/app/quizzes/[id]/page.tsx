@@ -160,7 +160,9 @@ export default function QuizPage() {
   }, [answers])
 
   const isQuestionAnswered = useCallback((questionIndex: number): boolean => {
-    const question = quiz?.questions[questionIndex]
+    if (!quiz?.questions || questionIndex >= quiz.questions.length) return false
+    
+    const question = quiz.questions[questionIndex]
     if (!question) return false
     
     const answer = getCurrentAnswer(question.id)
@@ -190,7 +192,9 @@ export default function QuizPage() {
   }
 
   const handleJumpToQuestion = (index: number) => {
-    setCurrentQuestionIndex(index)
+    if (quiz && index >= 0 && index < quiz.questions.length) {
+      setCurrentQuestionIndex(index)
+    }
   }
 
   const toggleFlag = (questionIndex: number) => {
@@ -256,9 +260,40 @@ export default function QuizPage() {
     )
   }
 
-  const currentQuestion = quiz.questions[currentQuestionIndex]
+  // Safety check for questions array
+  if (!quiz.questions || quiz.questions.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            This quiz has no questions available.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  // Ensure currentQuestionIndex is within bounds
+  const safeCurrentQuestionIndex = Math.max(0, Math.min(currentQuestionIndex, quiz.questions.length - 1))
+  const currentQuestion = quiz.questions[safeCurrentQuestionIndex]
+  
+  // Additional safety check
+  if (!currentQuestion) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Unable to load the current question. Please try refreshing the page.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   const currentAnswer = getCurrentAnswer(currentQuestion.id)
-  const progress = ((currentQuestionIndex + 1) / quiz.questions.length) * 100
+  const progress = ((safeCurrentQuestionIndex + 1) / quiz.questions.length) * 100
   const answeredCount = getAnsweredCount()
 
   return (
@@ -283,7 +318,7 @@ export default function QuizPage() {
           <div className="flex items-center gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center justify-between text-sm mb-1">
-                <span>Progress: {currentQuestionIndex + 1} of {quiz.questions.length}</span>
+                <span>Progress: {safeCurrentQuestionIndex + 1} of {quiz.questions.length}</span>
                 <span>{answeredCount} answered</span>
               </div>
               <Progress value={progress} className="h-2" />
@@ -306,7 +341,7 @@ export default function QuizPage() {
             {quiz.questions.map((_, index) => (
               <Button
                 key={index}
-                variant={index === currentQuestionIndex ? "default" : "outline"}
+                variant={index === safeCurrentQuestionIndex ? "default" : "outline"}
                 size="sm"
                 className={`relative ${
                   isQuestionAnswered(index) ? 'bg-green-50 border-green-200' : ''
@@ -332,7 +367,7 @@ export default function QuizPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
-                Question {currentQuestionIndex + 1}
+                Question {safeCurrentQuestionIndex + 1}
                 <span className="text-sm font-normal text-muted-foreground ml-2">
                   ({currentQuestion.points} {currentQuestion.points === 1 ? 'point' : 'points'})
                 </span>
@@ -340,8 +375,8 @@ export default function QuizPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => toggleFlag(currentQuestionIndex)}
-                className={flaggedQuestions.has(currentQuestionIndex) ? 'text-yellow-600' : ''}
+                onClick={() => toggleFlag(safeCurrentQuestionIndex)}
+                className={flaggedQuestions.has(safeCurrentQuestionIndex) ? 'text-yellow-600' : ''}
               >
                 <Flag className="h-4 w-4" />
               </Button>
@@ -430,7 +465,7 @@ export default function QuizPage() {
           <Button
             variant="outline"
             onClick={handlePreviousQuestion}
-            disabled={currentQuestionIndex === 0}
+            disabled={safeCurrentQuestionIndex === 0}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Previous
@@ -441,7 +476,7 @@ export default function QuizPage() {
               {answeredCount} of {quiz.questions.length} answered
             </span>
             
-            {currentQuestionIndex === quiz.questions.length - 1 ? (
+            {safeCurrentQuestionIndex === quiz.questions.length - 1 ? (
               <Button
                 onClick={handleSubmitQuiz}
                 disabled={isSubmitting}
@@ -453,7 +488,7 @@ export default function QuizPage() {
             ) : (
               <Button
                 onClick={handleNextQuestion}
-                disabled={currentQuestionIndex === quiz.questions.length - 1}
+                disabled={safeCurrentQuestionIndex === quiz.questions.length - 1}
               >
                 Next
                 <ArrowRight className="h-4 w-4 ml-2" />

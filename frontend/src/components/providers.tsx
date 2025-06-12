@@ -6,6 +6,8 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ThemeProvider } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
+import { ErrorBoundary } from 'react-error-boundary'
+import type { ErrorInfo } from 'react' // Import ErrorInfo type
 
 // Create a client
 const createQueryClient = () =>
@@ -14,7 +16,7 @@ const createQueryClient = () =>
       queries: {
         staleTime: 60 * 1000, // 1 minute
         cacheTime: 5 * 60 * 1000, // 5 minutes
-        retry: (failureCount, error: any) => {
+        retry: (failureCount: number, error: any) => {
           // Don't retry on 4xx errors except 408, 429
           if (error?.response?.status >= 400 && error?.response?.status < 500) {
             if (error?.response?.status === 408 || error?.response?.status === 429) {
@@ -29,7 +31,7 @@ const createQueryClient = () =>
         refetchOnReconnect: true,
       },
       mutations: {
-        retry: (failureCount, error: any) => {
+        retry: (failureCount: number, error: any) => {
           // Don't retry mutations on 4xx errors
           if (error?.response?.status >= 400 && error?.response?.status < 500) {
             return false
@@ -151,7 +153,7 @@ function KeyboardShortcutsProvider({ children }: { children: React.ReactNode }) 
       // Escape key to close modals
       if (event.key === 'Escape') {
         // Close any open modals or overlays
-        const backdrop = document.querySelector('[data-backdrop]')
+        const backdrop = document.querySelector('[data-backdrop]') as HTMLElement
         if (backdrop) {
           backdrop.click()
         }
@@ -165,14 +167,11 @@ function KeyboardShortcutsProvider({ children }: { children: React.ReactNode }) 
   return <>{children}</>
 }
 
-// Error Boundary Provider
-import { ErrorBoundary } from 'react-error-boundary'
-
 function ErrorBoundaryProvider({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onError={(error, errorInfo) => {
+      onError={(error: any, errorInfo: { componentStack: any }) => {
         console.error('Error caught by boundary:', error, errorInfo)
         
         // Report to error tracking service

@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const user: AuthUser | null = session?.user ? {
     id: session.user.id,
-    email: session.user.email,
+    email: session.user.email!,
     name: session.user.name,
     image: session.user.image,
     role: session.user.role,
